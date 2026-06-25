@@ -1,0 +1,847 @@
+/**
+ * ADA Vision Checker — App.tsx
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Main application shell.
+ *
+ * Visual simulation pipeline (applied left → right in CSS filter chain):
+ *   1. Color vision filter  — SVG feColorMatrix  (Brettel 1997 / Machado 2009)
+ *   2. Contrast filter      — CSS contrast() / brightness()  (WCAG 1.4.3)
+ *   3. Blur / spatial       — CSS blur()  (WHO ICD-11 acuity definitions)
+ *   4. Overlay              — DOM div radial-gradient  (glaucoma / AMD / cataracts)
+ *
+ * All source references live in src/app/data/effectSources.ts.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+import { useState, useRef, useCallback } from 'react';
+import { Eye, Upload, Check, BookOpen, BarChart3, RefreshCw, ImagePlus, Trash2 } from 'lucide-react';
+import * as Switch from '@radix-ui/react-switch';
+import { ContrastChecker } from './components/ContrastChecker';
+import { SourcesPanel } from './components/SourcesPanel';
+import { WelcomeScreen } from './components/WelcomeScreen';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ColorFilterId =
+  | 'none'
+  | 'protanopia'
+  | 'deuteranopia'
+  | 'tritanopia'
+  | 'achromatopsia'
+  | 'protanomaly'
+  | 'deuteranomaly';
+
+/**
+ * Contrast sensitivity simulation IDs.
+ * CSS filter values are documented in src/app/data/effectSources.ts
+ * under CONTRAST_SENSITIVITY_SOURCES.
+ */
+type ContrastFilterId = 'none' | 'low-contrast' | 'high-contrast' | 'washed-out';
+
+interface SpatialState {
+  lowVision: boolean;
+  glaucoma: boolean;
+  macular: boolean;
+  cataracts: boolean;
+}
+
+// ─── Color Vision Filter Data ─────────────────────────────────────────────────
+// Matrix values source: effectSources.ts → COLOR_VISION_SOURCES
+// Algorithm: Brettel et al. (1997) & Machado et al. (2009)
+
+const COLOR_FILTERS: {
+  id: ColorFilterId;
+  name: string;
+  description: string;
+  detail: string;
+  prevalence: string;
+  dot: string;
+}[] = [
+  {
+    id: 'none',
+    name: 'Normal Vision',
+    description: 'Full color perception',
+    detail: 'Reference baseline — no color transformation applied.',
+    prevalence: 'Reference',
+    dot: '#10b981',
+  },
+  {
+    id: 'protanopia',
+    name: 'Protanopia',
+    description: 'Red-blind (L-cone absent)',
+    detail:
+      'Reds appear dark brownish-gray. Red/green discrimination is severely impaired. ' +
+      'Error indicators, danger states, and links colored red-only become invisible.',
+    prevalence: '~0.8% of males',
+    dot: '#ef4444',
+  },
+  {
+    id: 'deuteranopia',
+    name: 'Deuteranopia',
+    description: 'Green-blind (M-cone absent)',
+    detail:
+      'Most common dichromacy. Green appears yellowish-red; red and green are confused. ' +
+      'Most color-coded charts and maps fail for deuteranopes.',
+    prevalence: '~1.0% of males',
+    dot: '#22c55e',
+  },
+  {
+    id: 'tritanopia',
+    name: 'Tritanopia',
+    description: 'Blue-blind (S-cone absent)',
+    detail:
+      'Blue appears green; yellow appears violet. Rare but relevant for blue-heavy UIs.',
+    prevalence: '~0.01% of population',
+    dot: '#3b82f6',
+  },
+  {
+    id: 'achromatopsia',
+    name: 'Achromatopsia',
+    description: 'No color vision (rod monochromacy)',
+    detail:
+      'World seen entirely in grayscale. Luminance contrast is the only visual cue. ' +
+      'UI relying solely on hue to convey information is completely inaccessible.',
+    prevalence: '~0.003% of population',
+    dot: '#9ca3af',
+  },
+  {
+    id: 'protanomaly',
+    name: 'Protanomaly',
+    description: 'Reduced red sensitivity',
+    detail: 'Partial L-cone shift. Reds appear muted; many affected are unaware.',
+    prevalence: '~1.0% of males',
+    dot: '#f97316',
+  },
+  {
+    id: 'deuteranomaly',
+    name: 'Deuteranomaly',
+    description: 'Reduced green sensitivity',
+    detail:
+      'Most prevalent color vision deficiency globally. Green hues shift toward red. ' +
+      'Testing for this covers the largest affected population.',
+    prevalence: '~5.0% of males',
+    dot: '#84cc16',
+  },
+];
+
+// ─── Contrast Sensitivity Filter Data ────────────────────────────────────────
+// CSS filter values source: effectSources.ts → CONTRAST_SENSITIVITY_SOURCES
+// Algorithm: Pelli & Bex (2013); W3C CSS Filter Effects Module Level 1
+
+const CONTRAST_FILTERS: {
+  id: ContrastFilterId;
+  name: string;
+  description: string;
+  detail: string;
+  /**
+   * The CSS filter string applied to the image.
+   * Documented in detail in effectSources.ts.
+   */
+  cssValue: string;
+  dot: string;
+}[] = [
+  {
+    id: 'none',
+    name: 'Normal Contrast',
+    description: 'No contrast modification',
+    detail: 'Reference — full contrast range.',
+    cssValue: '',
+    dot: '#10b981',
+  },
+  {
+    id: 'low-contrast',
+    name: 'Low Contrast Sensitivity',
+    description: 'Compressed dynamic range',
+    detail:
+      'Simulates reduced contrast sensitivity common in glaucoma, cataracts, ' +
+      'diabetic retinopathy, and aging. contrast(0.45) compresses tonal range to ~45%.',
+    cssValue: 'contrast(0.45) brightness(1.06)',
+    dot: '#a78bfa',
+  },
+  {
+    id: 'high-contrast',
+    name: 'High Contrast Mode',
+    description: 'OS accessibility override',
+    detail:
+      'Approximates Windows High Contrast / forced colors mode. ' +
+      'Mid-tones clip to black or white. contrast(3.5) saturate(1.8).',
+    cssValue: 'contrast(3.5) saturate(1.8)',
+    dot: '#facc15',
+  },
+  {
+    id: 'washed-out',
+    name: 'Overexposed / Washed Out',
+    description: 'Photophobia + low dynamic range',
+    detail:
+      'Simulates photophobia (albinism, achromatopsia, aniridia). ' +
+      'Bright backgrounds overwhelm; subtle contrasts vanish. brightness(1.9) contrast(0.35).',
+    cssValue: 'brightness(1.9) contrast(0.35) saturate(0.55)',
+    dot: '#fb923c',
+  },
+];
+
+// ─── Spatial Effect Data ──────────────────────────────────────────────────────
+// Source: effectSources.ts → SPATIAL_SOURCES
+// Clinical definitions: WHO ICD-11
+
+const SPATIAL_EFFECTS: {
+  id: keyof SpatialState;
+  name: string;
+  description: string;
+  detail: string;
+  color: string;
+}[] = [
+  {
+    id: 'lowVision',
+    name: 'Low Vision',
+    description: 'Reduced acuity — blur(4px)',
+    detail:
+      'WHO ICD-11 category 9D90.0. Gaussian blur (σ≈4px) approximates visual acuity ' +
+      'worse than 6/18. Small text and fine detail become unresolvable.',
+    color: '#a78bfa',
+  },
+  {
+    id: 'glaucoma',
+    name: 'Glaucoma',
+    description: 'Tunnel vision — radial vignette',
+    detail:
+      'Peripheral field loss. Radial-gradient overlay: transparent 22% → black 72%. ' +
+      'Users cannot see peripheral navigation, edge alerts, or sidebars.',
+    color: '#fb923c',
+  },
+  {
+    id: 'macular',
+    name: 'Macular Degeneration',
+    description: 'Central scotoma — dark center',
+    detail:
+      'AMD absolute scotoma modeled as dark radial gradient at image center. ' +
+      'Users rely on eccentric (peripheral) fixation to read.',
+    color: '#f43f5e',
+  },
+  {
+    id: 'cataracts',
+    name: 'Cataracts',
+    description: 'Blur + yellow tint — blur(2px)',
+    detail:
+      'Nuclear cataract: blur(2px) + rgba(255,230,140,0.22) overlay simulating ' +
+      'xanthophyll lens yellowing (blue-channel absorption).',
+    color: '#fbbf24',
+  },
+];
+
+// ─── SVG Filter Definitions ───────────────────────────────────────────────────
+/**
+ * Hidden SVG containing feColorMatrix filter definitions.
+ *
+ * Format: W3C SVG 1.1 §15.10 feColorMatrix type="matrix"
+ *   [ a  b  c  d  e ]
+ *   [ f  g  h  i  j ]   ← one row per output channel (R, G, B, A)
+ *   [ k  l  m  n  o ]
+ *   [ p  q  r  s  t ]
+ *
+ * colorInterpolationFilters="sRGB" keeps calculations in display-space sRGB,
+ * matching the WCAG luminance formula's sRGB assumption.
+ *
+ * Full source citations → src/app/data/effectSources.ts
+ */
+function SvgFilters() {
+  return (
+    <svg
+      aria-hidden="true"
+      style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}
+    >
+      <defs>
+        {/*
+          PROTANOPIA — L-cone (red) absence
+          Source: Brettel, Viénot & Mollon (1997) JOSA A 14(10):2647-2655
+                  Viénot, Brettel & Mollon (1999) Color Res Appl 24(4):243-252
+          Matrix: Projects L-cone axis onto M-cone and S-cone in LMS space,
+                  then converts back to sRGB.
+        */}
+        <filter id="protanopia" colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.567 0.433 0     0 0
+                    0.558 0.442 0     0 0
+                    0     0.242 0.758 0 0
+                    0     0     0     1 0"
+          />
+        </filter>
+
+        {/*
+          DEUTERANOPIA — M-cone (green) absence
+          Source: Brettel, Viénot & Mollon (1997) JOSA A 14(10):2647-2655
+                  Viénot, Brettel & Mollon (1999) Color Res Appl 24(4):243-252
+          Matrix: Projects M-cone axis onto L-cone and S-cone in LMS space.
+        */}
+        <filter id="deuteranopia" colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.625 0.375 0   0 0
+                    0.7   0.3   0   0 0
+                    0     0.3   0.7 0 0
+                    0     0     0   1 0"
+          />
+        </filter>
+
+        {/*
+          TRITANOPIA — S-cone (blue) absence
+          Source: Brettel, Viénot & Mollon (1997) JOSA A 14(10):2647-2655
+          Matrix: Projects S-cone axis onto L-cone and M-cone.
+        */}
+        <filter id="tritanopia" colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.95  0.05  0     0 0
+                    0     0.433 0.567 0 0
+                    0     0.475 0.525 0 0
+                    0     0     0     1 0"
+          />
+        </filter>
+
+        {/*
+          ACHROMATOPSIA — rod monochromacy (no cone function)
+          Source: ITU-R BT.601 luma coefficients (Y = 0.299R + 0.587G + 0.114B)
+          All three output channels equal the perceptual luminance Y,
+          producing a true grayscale with perceptual weighting.
+        */}
+        <filter id="achromatopsia" colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.299 0.587 0.114 0 0
+                    0.299 0.587 0.114 0 0
+                    0.299 0.587 0.114 0 0
+                    0     0     0     1 0"
+          />
+        </filter>
+
+        {/*
+          PROTANOMALY — reduced L-cone sensitivity (severity ≈ 0.7)
+          Source: Machado, Oliveira & Fernandes (2009)
+                  IEEE TVCG 15(6):1291-1298  DOI:10.1109/TVCG.2009.113
+          Matrix: Interpolation between identity and protanopia at severity 0.7.
+          Physiology: L-cone peak shifts ~20 nm toward M-cone peak.
+        */}
+        <filter id="protanomaly" colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.817 0.183 0     0 0
+                    0.333 0.667 0     0 0
+                    0     0.125 0.875 0 0
+                    0     0     0     1 0"
+          />
+        </filter>
+
+        {/*
+          DEUTERANOMALY — reduced M-cone sensitivity (severity ≈ 0.7)
+          Source: Machado, Oliveira & Fernandes (2009)
+                  IEEE TVCG 15(6):1291-1298  DOI:10.1109/TVCG.2009.113
+          Most prevalent color vision deficiency: ~5% of males globally.
+          Matrix: Interpolation between identity and deuteranopia at severity 0.7.
+        */}
+        <filter id="deuteranomaly" colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.8   0.2   0     0 0
+                    0.258 0.742 0     0 0
+                    0     0.142 0.858 0 0
+                    0     0     0     1 0"
+          />
+        </filter>
+      </defs>
+    </svg>
+  );
+}
+
+// ─── Small helpers ────────────────────────────────────────────────────────────
+
+function ActiveBadge({ label, color }: { label: string; color: string }) {
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs border"
+      style={{ backgroundColor: color + '18', color, borderColor: color + '40' }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function SwitchRow({
+  label,
+  sublabel,
+  checked,
+  color,
+  onChange,
+}: {
+  label: string;
+  sublabel: string;
+  checked: boolean;
+  color: string;
+  onChange: () => void;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${
+        checked ? 'border-gray-600 bg-gray-800/80' : 'border-gray-800 bg-gray-900/40'
+      }`}
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div
+          className="w-2 h-2 rounded-full flex-none transition-colors"
+          style={{ backgroundColor: checked ? color : '#374151' }}
+        />
+        <div className="min-w-0">
+          <p className="text-sm text-gray-200 leading-none mb-0.5">{label}</p>
+          <p className="text-xs text-gray-500 leading-none">{sublabel}</p>
+        </div>
+      </div>
+      <Switch.Root
+        checked={checked}
+        onCheckedChange={onChange}
+        className={`relative w-9 h-5 rounded-full outline-none cursor-pointer transition-colors flex-none ml-3 ${
+          checked ? 'bg-blue-600' : 'bg-gray-700'
+        }`}
+      >
+        <Switch.Thumb className="block w-4 h-4 bg-white rounded-full shadow transition-transform data-[state=checked]:translate-x-4 translate-x-0.5" />
+      </Switch.Root>
+    </div>
+  );
+}
+
+
+// ─── Vision Simulator Panel ───────────────────────────────────────────────────
+
+interface SimulatorProps {
+  image: string;
+  colorFilter: ColorFilterId;
+  contrastFilter: ContrastFilterId;
+  spatial: SpatialState;
+  onReplace: () => void;
+  onClear: () => void;
+}
+
+function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplace, onClear }: SimulatorProps) {
+  /**
+   * Compose the CSS filter chain.
+   * Order matters — applied left to right:
+   *   1. url(#svgId)         — color matrix transform   (Brettel/Machado)
+   *   2. contrast() / etc.   — contrast sensitivity     (Pelli & Bex 2013)
+   *   3. blur()              — spatial acuity loss      (WHO ICD-11)
+   *
+   * Reference: W3C Filter Effects Module Level 1
+   *   https://www.w3.org/TR/filter-effects-1/
+   */
+  const contrastData = CONTRAST_FILTERS.find(c => c.id === contrastFilter)!;
+  const blurPx = (spatial.lowVision ? 4 : 0) + (spatial.cataracts ? 2 : 0);
+
+  const cssFilterChain = [
+    colorFilter !== 'none' ? `url(#${colorFilter})` : '',
+    contrastFilter !== 'none' ? contrastData.cssValue : '',
+    blurPx > 0 ? `blur(${blurPx}px)` : '',
+  ]
+    .filter(Boolean)
+    .join(' ') || undefined;
+
+  const activeColorData = COLOR_FILTERS.find(f => f.id === colorFilter)!;
+  const activeSpatial = SPATIAL_EFFECTS.filter(e => spatial[e.id]);
+  const hasAny = colorFilter !== 'none' || contrastFilter !== 'none' || activeSpatial.length > 0;
+
+  return (
+    <div className="h-full flex flex-col gap-3">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Active simulation badges */}
+        <span className="text-xs text-gray-500 flex-none">Simulating:</span>
+        {!hasAny && <span className="text-xs text-gray-600 italic">None — select a filter from the sidebar</span>}
+        {colorFilter !== 'none' && <ActiveBadge label={activeColorData.name} color={activeColorData.dot} />}
+        {contrastFilter !== 'none' && <ActiveBadge label={contrastData.name} color={contrastData.dot} />}
+        {activeSpatial.map(e => <ActiveBadge key={e.id} label={e.name} color={e.color} />)}
+
+        {/* Image action buttons — pushed to the right */}
+        <div className="ml-auto flex items-center gap-2 flex-none">
+          <button
+            onClick={onReplace}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-all"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Replace image
+          </button>
+          <button
+            onClick={onClear}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-400 hover:bg-red-900/40 hover:border-red-700/50 hover:text-red-400 transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Start over
+          </button>
+        </div>
+      </div>
+
+      {/* Side-by-side images */}
+      <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+        {/* Original */}
+        <div className="flex flex-col min-h-0">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-xs text-gray-400">Original</span>
+          </div>
+          <div className="flex-1 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center min-h-0">
+            <img src={image} alt="Original" className="max-w-full max-h-full object-contain" />
+          </div>
+        </div>
+
+        {/* Simulated */}
+        <div className="flex flex-col min-h-0">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 rounded-full bg-blue-400" />
+            <span className="text-xs text-gray-400">Simulated View</span>
+          </div>
+          <div className="flex-1 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 relative flex items-center justify-center min-h-0">
+            {/* Primary image with filter chain */}
+            <img
+              src={image}
+              alt="Simulated view"
+              className="max-w-full max-h-full object-contain"
+              style={{ filter: cssFilterChain }}
+            />
+
+            {/*
+              GLAUCOMA overlay — radial vignette
+              Source: Quigley & Broman (2006) Br J Ophthalmol 90(3):262-267
+              Model: transparent 22% → opaque black 72% (arcuate scotoma approximation)
+            */}
+            {spatial.glaucoma && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background:
+                    'radial-gradient(ellipse at center, transparent 22%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.97) 72%)',
+                }}
+              />
+            )}
+
+            {/*
+              MACULAR DEGENERATION overlay — central scotoma
+              Source: Wong et al. (2014) JAMA Ophthalmol 132(5):506-526
+              Model: dark center (absolute scotoma) fading to clear at 50% radius
+            */}
+            {spatial.macular && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background:
+                    'radial-gradient(ellipse at center, rgba(0,0,0,0.90) 12%, rgba(0,0,0,0.50) 28%, transparent 52%)',
+                }}
+              />
+            )}
+
+            {/*
+              CATARACTS tint overlay — xanthophyll lens yellowing
+              Source: Zigman (2000) J Ocul Pharmacol Ther 16(2):161-165
+              Model: rgba(255,230,140,0.22) approximates blue-channel absorption
+              by 3-OH kynurenine in nuclear sclerotic cataract
+            */}
+            {spatial.cataracts && (
+              <div
+                className="absolute inset-0 pointer-events-none rounded-xl"
+                style={{ backgroundColor: 'rgba(255, 230, 140, 0.22)' }}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Detail info cards */}
+      {hasAny && (
+        <div className="grid grid-cols-2 gap-3">
+          {colorFilter !== 'none' && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-3">
+              <p className="text-xs text-gray-500 mb-1">Color Vision Filter</p>
+              <p className="text-sm text-gray-200 mb-0.5">{activeColorData.name}</p>
+              <p className="text-xs text-gray-400 mb-1">{activeColorData.detail}</p>
+              <p className="text-xs font-mono text-gray-600">url(#{colorFilter})</p>
+              <p className="text-xs text-blue-400 mt-1">Affects {activeColorData.prevalence}</p>
+            </div>
+          )}
+          {contrastFilter !== 'none' && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-3">
+              <p className="text-xs text-gray-500 mb-1">Contrast Simulation</p>
+              <p className="text-sm text-gray-200 mb-0.5">{contrastData.name}</p>
+              <p className="text-xs text-gray-400 mb-1">{contrastData.detail}</p>
+              <p className="text-xs font-mono text-gray-600">{contrastData.cssValue}</p>
+            </div>
+          )}
+          {activeSpatial.map(e => (
+            <div key={e.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3">
+              <p className="text-xs text-gray-500 mb-1">Spatial Effect</p>
+              <p className="text-sm text-gray-200 mb-0.5">{e.name}</p>
+              <p className="text-xs text-gray-400">{e.detail}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── App Shell ────────────────────────────────────────────────────────────────
+
+type AppTab = 'vision' | 'contrast' | 'sources';
+
+export default function App() {
+  const [image, setImage] = useState<string | null>(null);
+  const [colorFilter, setColorFilter] = useState<ColorFilterId>('none');
+  const [contrastFilter, setContrastFilter] = useState<ContrastFilterId>('none');
+  const [spatial, setSpatial] = useState<SpatialState>({
+    lowVision: false,
+    glaucoma: false,
+    macular: false,
+    cataracts: false,
+  });
+  const [tab, setTab] = useState<AppTab>('vision');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = e => setImage(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }, []);
+
+  const toggleSpatial = (key: keyof SpatialState) =>
+    setSpatial(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const resetAll = () => {
+    setColorFilter('none');
+    setContrastFilter('none');
+    setSpatial({ lowVision: false, glaucoma: false, macular: false, cataracts: false });
+  };
+
+  const clearImage = () => {
+    setImage(null);
+    resetAll();
+    // Reset file input so the same file can be re-selected after clearing
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const activeSpatialCount = Object.values(spatial).filter(Boolean).length;
+  const hasAnyEffect =
+    colorFilter !== 'none' || contrastFilter !== 'none' || activeSpatialCount > 0;
+
+  const TAB_DEFS: { id: AppTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'vision',    label: 'Vision Simulator', icon: <Eye className="w-3.5 h-3.5" /> },
+    { id: 'contrast',  label: 'Contrast Checker', icon: <BarChart3 className="w-3.5 h-3.5" /> },
+    { id: 'sources',   label: 'Sources',          icon: <BookOpen className="w-3.5 h-3.5" /> },
+  ];
+
+  return (
+    <div className="h-screen bg-gray-950 text-gray-100 flex flex-col overflow-hidden">
+      <SvgFilters />
+
+      {/* ── Header ── */}
+      <header className="flex-none border-b border-gray-800 px-5 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 flex-none">
+          <div>
+            <h1 className="text-gray-100 leading-none">ADA Vision Checker</h1>
+            <p className="text-xs text-gray-500 leading-none mt-0.5">WCAG 2.1 · ADA · Section 508</p>
+          </div>
+        </div>
+
+        <nav className="flex gap-1 bg-gray-900 rounded-lg p-1 border border-gray-800">
+          {TAB_DEFS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
+                tab === t.id
+                  ? 'bg-gray-700 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* ── Sidebar ── */}
+        <aside className="w-64 flex-none border-r border-gray-800 overflow-y-auto flex flex-col">
+          <div className="p-4 space-y-5 flex-1">
+
+            {/* Upload */}
+            <div>
+              <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">Image</p>
+              {image ? (
+                <div className="space-y-1.5">
+                  {/* Status indicator */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-900/15 border border-emerald-700/40">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 flex-none" />
+                    <span className="text-xs text-emerald-400 truncate">Image loaded</span>
+                  </div>
+                  {/* Replace */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800/60 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-all"
+                  >
+                    <ImagePlus className="w-4 h-4 flex-none text-gray-400" />
+                    Load new image
+                  </button>
+                  {/* Start over */}
+                  <button
+                    onClick={clearImage}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-800 bg-gray-900/40 text-sm text-gray-500 hover:bg-red-900/30 hover:border-red-700/40 hover:text-red-400 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4 flex-none" />
+                    Clear &amp; start over
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-700 bg-gray-900/50 text-sm text-gray-400 hover:border-gray-600 hover:text-gray-200 transition-all"
+                >
+                  <Upload className="w-4 h-4 flex-none" />
+                  Upload image
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) loadFile(f); }}
+              />
+            </div>
+
+            {/* Color Vision Deficiency */}
+            <div>
+              <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">
+                Color Vision Deficiency
+              </p>
+              <div className="space-y-0.5">
+                {COLOR_FILTERS.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => setColorFilter(f.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left border transition-all ${
+                      colorFilter === f.id
+                        ? 'bg-blue-600/15 border-blue-500/35'
+                        : 'border-transparent hover:bg-gray-800'
+                    }`}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full flex-none" style={{ backgroundColor: ({ none: '#bfdbfe', protanopia: '#93c5fd', deuteranopia: '#60a5fa', tritanopia: '#3b82f6', achromatopsia: '#2563eb', protanomaly: '#1d4ed8', deuteranomaly: '#1e40af' } as Record<string, string>)[f.id] ?? '#3b82f6' }} />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm text-gray-200 block truncate">{f.name}</span>
+                      <span className="text-xs text-gray-500 block">{f.prevalence}</span>
+                    </div>
+                    {colorFilter === f.id && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-none" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Contrast Sensitivity */}
+            <div>
+              <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">
+                Contrast Sensitivity
+              </p>
+              <div className="space-y-0.5">
+                {CONTRAST_FILTERS.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => setContrastFilter(f.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left border transition-all ${
+                      contrastFilter === f.id
+                        ? 'bg-purple-600/15 border-purple-500/35'
+                        : 'border-transparent hover:bg-gray-800'
+                    }`}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full flex-none" style={{ backgroundColor: f.dot }} />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm text-gray-200 block truncate">{f.name}</span>
+                      <span className="text-xs text-gray-500 block truncate">{f.description}</span>
+                    </div>
+                    {contrastFilter === f.id && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-purple-400 flex-none" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Spatial Effects */}
+            <div>
+              <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">
+                Additional Effects
+              </p>
+              <div className="space-y-1.5">
+                {SPATIAL_EFFECTS.map(e => (
+                  <SwitchRow
+                    key={e.id}
+                    label={e.name}
+                    sublabel={e.description}
+                    checked={spatial[e.id]}
+                    color={e.color}
+                    onChange={() => toggleSpatial(e.id)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Active indicator + reset */}
+            {hasAnyEffect && (
+              <div className="bg-blue-500/8 border border-blue-500/20 rounded-lg p-3">
+                <p className="text-xs text-blue-400 mb-1">
+                  {[
+                    colorFilter !== 'none' ? 1 : 0,
+                    contrastFilter !== 'none' ? 1 : 0,
+                    activeSpatialCount,
+                  ].reduce((a, b) => a + b, 0)}{' '}
+                  simulation{hasAnyEffect ? 's' : ''} active
+                </p>
+                <button
+                  onClick={resetAll}
+                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  Reset all →
+                </button>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* ── Main Content ── */}
+        <main className="flex-1 overflow-auto p-5 flex flex-col min-h-0">
+          {tab === 'vision' && (
+            image
+              ? <VisionSimulator
+                  image={image}
+                  colorFilter={colorFilter}
+                  contrastFilter={contrastFilter}
+                  spatial={spatial}
+                  onReplace={() => fileInputRef.current?.click()}
+                  onClear={clearImage}
+                />
+              : <WelcomeScreen onFile={loadFile} />
+          )}
+
+          {tab === 'contrast' && (
+            <div className="max-w-2xl mx-auto w-full">
+              <div className="mb-6">
+                <h2 className="text-gray-100">WCAG Contrast Checker</h2>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  Test color pairs against WCAG 2.1 AA and AAA thresholds
+                </p>
+              </div>
+              <ContrastChecker />
+            </div>
+          )}
+
+          {tab === 'sources' && <SourcesPanel />}
+        </main>
+      </div>
+    </div>
+  );
+}
