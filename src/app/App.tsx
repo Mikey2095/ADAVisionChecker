@@ -422,9 +422,12 @@ interface SimulatorProps {
   spatial: SpatialState;
   onReplace: () => void;
   onClear: () => void;
+  onColorFilter: (id: ColorFilterId) => void;
+  onContrastFilter: (id: ContrastFilterId) => void;
+  onToggleSpatial: (key: keyof SpatialState) => void;
 }
 
-function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplace, onClear }: SimulatorProps) {
+function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplace, onClear, onColorFilter, onContrastFilter, onToggleSpatial }: SimulatorProps) {
   /**
    * Compose the CSS filter chain.
    * Order matters — applied left to right:
@@ -451,16 +454,28 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
   const hasAny = colorFilter !== 'none' || contrastFilter !== 'none' || activeSpatial.length > 0;
 
   return (
-    <div className="h-full flex flex-col gap-3">
+    // Mobile: natural scroll column so images never compress when cards appear/disappear.
+    // Desktop (sm+): height-filling flex so images stretch to fill the panel.
+    <div className="flex flex-col gap-3 overflow-y-auto sm:overflow-hidden sm:h-full pb-2 sm:pb-0">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-[#374151] font-medium flex-none">Simulating:</span>
-        {!hasAny && <span className="text-xs text-[#6b7280] italic">None — select a filter</span>}
-        {colorFilter !== 'none' && <ActiveBadge label={activeColorData.name} color={activeColorData.dot} />}
-        {contrastFilter !== 'none' && <ActiveBadge label={contrastData.name} color={contrastData.dot} />}
-        {activeSpatial.map(e => <ActiveBadge key={e.id} label={e.name} color={e.color} />)}
+      <div className="flex items-center gap-2 flex-none">
+        {/* Active badges — desktop only */}
+        <span className="hidden sm:inline text-xs text-[#374151] font-medium flex-none">Simulating:</span>
+        {!hasAny && <span className="hidden sm:inline text-xs text-[#6b7280] italic">None — select a filter from the sidebar</span>}
+        {colorFilter !== 'none' && <span className="hidden sm:inline"><ActiveBadge label={activeColorData.name} color={activeColorData.dot} /></span>}
+        {contrastFilter !== 'none' && <span className="hidden sm:inline"><ActiveBadge label={contrastData.name} color={contrastData.dot} /></span>}
+        {activeSpatial.map(e => <span key={e.id} className="hidden sm:inline"><ActiveBadge label={e.name} color={e.color} /></span>)}
 
-        <div className="ml-auto flex items-center gap-1.5 flex-none">
+        {/* Mobile: single-line stable label — same height whether a filter is active or not */}
+        <span className="sm:hidden text-xs text-[#374151] font-medium truncate flex-1">
+          {[
+            colorFilter !== 'none' ? activeColorData.name : null,
+            contrastFilter !== 'none' ? contrastData.name : null,
+            ...activeSpatial.map(e => e.name),
+          ].filter(Boolean).join(' + ') || 'Select a filter below'}
+        </span>
+
+        <div className="flex items-center gap-1.5 flex-none ml-auto">
           <button
             onClick={onReplace}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-[#f0f0f0] border border-[#e0e0e8] text-[#444] hover:bg-[#e5e5e8] transition-all"
@@ -478,28 +493,34 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
         </div>
       </div>
 
-      {/* Side-by-side images */}
-      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-0">
+      {/* Image pair
+          Mobile:  fixed-height boxes stacked — size never changes on filter tap
+          Desktop: flex-1 grid that stretches to fill remaining panel height          */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-none sm:flex-1 sm:min-h-0">
         {/* Original */}
-        <div className="flex flex-col min-h-0">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-none" />
             <span className="text-sm text-[#1f2937] font-semibold">Normal Vision</span>
             <span className="text-xs text-[#6b7280]">Reference</span>
           </div>
-          <div className="bg-white rounded-xl overflow-hidden border border-[#e0e0e8] flex items-center justify-center min-h-[200px] sm:flex-1 sm:min-h-0">
+          {/* h-[220px] is fixed on mobile — cannot be compressed by siblings */}
+          <div className="h-[220px] sm:h-auto sm:flex-1 sm:min-h-0 bg-white rounded-xl overflow-hidden border border-[#e0e0e8] flex items-center justify-center">
             <img src={image} alt="Original" className="max-w-full max-h-full object-contain" />
           </div>
         </div>
 
         {/* Simulated */}
-        <div className="flex flex-col min-h-0">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#0c0c0f]" />
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#0c0c0f] flex-none" />
             <span className="text-sm text-[#1f2937] font-semibold">Simulated View</span>
-            {hasAny && <span className="text-xs text-[#6b7280]">{activeColorData.name !== 'Normal Vision' ? activeColorData.name : ''}</span>}
+            <span className="text-xs text-[#6b7280] truncate">
+              {hasAny && activeColorData.name !== 'Normal Vision' ? activeColorData.name : ''}
+            </span>
           </div>
-          <div className="bg-white rounded-xl overflow-hidden border border-[#e0e0e8] relative flex items-center justify-center min-h-[200px] sm:flex-1 sm:min-h-0">
+          {/* Same fixed height as original — always identical, never shifts */}
+          <div className="h-[220px] sm:h-auto sm:flex-1 sm:min-h-0 bg-white rounded-xl overflow-hidden border border-[#e0e0e8] relative flex items-center justify-center">
             {/* Primary image with filter chain */}
             <img
               src={image}
@@ -554,9 +575,80 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
         </div>
       </div>
 
-      {/* Detail info cards */}
+      {/* ── Mobile inline filter picker — flex-none keeps it out of the flex sizing pool ── */}
+      <div className="sm:hidden flex-none bg-white border border-[#e0e0e8] rounded-xl overflow-hidden">
+        {/* Color Vision */}
+        <div className="px-3 pt-3 pb-2 border-b border-[#f0f0f0]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.8px] text-[#374151] mb-2">Color Vision</p>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+            {COLOR_FILTERS.map(f => (
+              <button
+                key={f.id}
+                onClick={() => onColorFilter(f.id)}
+                className={`flex-none flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] font-medium whitespace-nowrap transition-all ${
+                  colorFilter === f.id
+                    ? 'bg-[#191919] text-white'
+                    : 'bg-[#f0f0f0] text-[#1f2937] hover:bg-[#e8e8e8]'
+                }`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-none"
+                  style={{ backgroundColor: colorFilter === f.id ? '#fff' : f.dot }}
+                />
+                {f.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Contrast Sensitivity */}
+        <div className="px-3 pt-2.5 pb-2 border-b border-[#f0f0f0]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.8px] text-[#374151] mb-2">Contrast</p>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+            {CONTRAST_FILTERS.map(f => (
+              <button
+                key={f.id}
+                onClick={() => onContrastFilter(f.id)}
+                className={`flex-none px-3 py-2 rounded-full text-[12px] font-medium whitespace-nowrap transition-all ${
+                  contrastFilter === f.id
+                    ? 'bg-[#191919] text-white'
+                    : 'bg-[#f0f0f0] text-[#1f2937] hover:bg-[#e8e8e8]'
+                }`}
+              >
+                {f.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Spatial / Additional effects */}
+        <div className="px-3 pt-2.5 pb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.8px] text-[#374151] mb-2">Additional Effects</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {SPATIAL_EFFECTS.map(e => (
+              <button
+                key={e.id}
+                onClick={() => onToggleSpatial(e.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] font-medium transition-all border ${
+                  spatial[e.id]
+                    ? 'bg-[#191919] text-white border-[#191919]'
+                    : 'bg-transparent text-[#374151] border-[#e0e0e8] hover:border-[#c0c0c8]'
+                }`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-none"
+                  style={{ backgroundColor: spatial[e.id] ? '#fff' : e.color }}
+                />
+                {e.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Detail info cards — flex-none so they never compress the image grid */}
       {hasAny && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="flex-none grid grid-cols-1 sm:grid-cols-2 gap-3">
           {colorFilter !== 'none' && (
             <div className="bg-white border border-[#e0e0e8] rounded-xl p-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#374151] mb-1">Color Vision Filter</p>
@@ -881,6 +973,9 @@ export default function App() {
                   spatial={spatial}
                   onReplace={() => fileInputRef.current?.click()}
                   onClear={clearImage}
+                  onColorFilter={setColorFilter}
+                  onContrastFilter={setContrastFilter}
+                  onToggleSpatial={toggleSpatial}
                 />
               : <WelcomeScreen onFile={loadFile} />
           )}
