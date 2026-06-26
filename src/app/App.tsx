@@ -14,11 +14,12 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { Eye, Upload, Check, BookOpen, BarChart3, RefreshCw, ImagePlus, Trash2 } from 'lucide-react';
+import { Eye, Upload, Check, BookOpen, BarChart3, RefreshCw, ImagePlus, Trash2, SlidersHorizontal, X, Camera } from 'lucide-react';
 import * as Switch from '@radix-ui/react-switch';
 import { ContrastChecker } from './components/ContrastChecker';
 import { SourcesPanel } from './components/SourcesPanel';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import { LiveCamera } from './components/LiveCamera';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -358,7 +359,7 @@ function SvgFilters() {
 function ActiveBadge({ label, color }: { label: string; color: string }) {
   return (
     <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs border"
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs border font-medium"
       style={{ backgroundColor: color + '18', color, borderColor: color + '40' }}
     >
       {label}
@@ -381,28 +382,31 @@ function SwitchRow({
 }) {
   return (
     <div
-      className={`flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${
-        checked ? 'border-gray-600 bg-gray-800/80' : 'border-gray-800 bg-gray-900/40'
+      className={`flex items-center justify-between px-2.5 py-2 rounded-[6px] transition-all ${
+        checked ? 'bg-[#191919]' : 'bg-[#f0f0f0]'
       }`}
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <div
-          className="w-2 h-2 rounded-full flex-none transition-colors"
-          style={{ backgroundColor: checked ? color : '#374151' }}
+          className="w-1.5 h-1.5 rounded-full flex-none transition-colors"
+          style={{ backgroundColor: checked ? '#ffffff' : '#3a3a3a' }}
         />
         <div className="min-w-0">
-          <p className="text-sm text-gray-200 leading-none mb-0.5">{label}</p>
-          <p className="text-xs text-gray-500 leading-none">{sublabel}</p>
+          <p className={`text-[12px] font-medium leading-4 ${checked ? 'text-white' : 'text-[#1f2937]'}`}>{label}</p>
+          <p className={`text-[11px] leading-[14px] ${checked ? 'text-[#aaa]' : 'text-[#6b7280]'}`}>{sublabel}</p>
         </div>
       </div>
       <Switch.Root
         checked={checked}
         onCheckedChange={onChange}
-        className={`relative w-9 h-5 rounded-full outline-none cursor-pointer transition-colors flex-none ml-3 ${
-          checked ? 'bg-blue-600' : 'bg-gray-700'
+        className={`relative w-8 h-[18px] rounded-full outline-none cursor-pointer transition-colors flex-none ml-3 ${
+          checked ? 'bg-[#444]' : 'bg-[#222]'
         }`}
       >
-        <Switch.Thumb className="block w-4 h-4 bg-white rounded-full shadow transition-transform data-[state=checked]:translate-x-4 translate-x-0.5" />
+        <Switch.Thumb
+          className="block w-3.5 h-3.5 rounded-full shadow transition-transform data-[state=checked]:translate-x-[18px] translate-x-0.5"
+          style={{ backgroundColor: checked ? '#fff' : '#3a3a3a' }}
+        />
       </Switch.Root>
     </div>
   );
@@ -450,41 +454,40 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
     <div className="h-full flex flex-col gap-3">
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Active simulation badges */}
-        <span className="text-xs text-gray-500 flex-none">Simulating:</span>
-        {!hasAny && <span className="text-xs text-gray-600 italic">None — select a filter from the sidebar</span>}
+        <span className="text-xs text-[#374151] font-medium flex-none">Simulating:</span>
+        {!hasAny && <span className="text-xs text-[#6b7280] italic">None — select a filter</span>}
         {colorFilter !== 'none' && <ActiveBadge label={activeColorData.name} color={activeColorData.dot} />}
         {contrastFilter !== 'none' && <ActiveBadge label={contrastData.name} color={contrastData.dot} />}
         {activeSpatial.map(e => <ActiveBadge key={e.id} label={e.name} color={e.color} />)}
 
-        {/* Image action buttons — pushed to the right */}
-        <div className="ml-auto flex items-center gap-2 flex-none">
+        <div className="ml-auto flex items-center gap-1.5 flex-none">
           <button
             onClick={onReplace}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-all"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-[#f0f0f0] border border-[#e0e0e8] text-[#444] hover:bg-[#e5e5e8] transition-all"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            Replace image
+            <span className="hidden sm:inline">Replace image</span>
           </button>
           <button
             onClick={onClear}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-400 hover:bg-red-900/40 hover:border-red-700/50 hover:text-red-400 transition-all"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-[#f0f0f0] border border-[#e0e0e8] text-[#6b7280] hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-all"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            Start over
+            <span className="hidden sm:inline">Start over</span>
           </button>
         </div>
       </div>
 
       {/* Side-by-side images */}
-      <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-0">
         {/* Original */}
         <div className="flex flex-col min-h-0">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="text-xs text-gray-400">Original</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="text-sm text-[#1f2937] font-semibold">Normal Vision</span>
+            <span className="text-xs text-[#6b7280]">Reference</span>
           </div>
-          <div className="flex-1 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center min-h-0">
+          <div className="bg-white rounded-xl overflow-hidden border border-[#e0e0e8] flex items-center justify-center min-h-[200px] sm:flex-1 sm:min-h-0">
             <img src={image} alt="Original" className="max-w-full max-h-full object-contain" />
           </div>
         </div>
@@ -492,10 +495,11 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
         {/* Simulated */}
         <div className="flex flex-col min-h-0">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 rounded-full bg-blue-400" />
-            <span className="text-xs text-gray-400">Simulated View</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#0c0c0f]" />
+            <span className="text-sm text-[#1f2937] font-semibold">Simulated View</span>
+            {hasAny && <span className="text-xs text-[#6b7280]">{activeColorData.name !== 'Normal Vision' ? activeColorData.name : ''}</span>}
           </div>
-          <div className="flex-1 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 relative flex items-center justify-center min-h-0">
+          <div className="bg-white rounded-xl overflow-hidden border border-[#e0e0e8] relative flex items-center justify-center min-h-[200px] sm:flex-1 sm:min-h-0">
             {/* Primary image with filter chain */}
             <img
               src={image}
@@ -552,29 +556,29 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
 
       {/* Detail info cards */}
       {hasAny && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {colorFilter !== 'none' && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-3">
-              <p className="text-xs text-gray-500 mb-1">Color Vision Filter</p>
-              <p className="text-sm text-gray-200 mb-0.5">{activeColorData.name}</p>
-              <p className="text-xs text-gray-400 mb-1">{activeColorData.detail}</p>
-              <p className="text-xs font-mono text-gray-600">url(#{colorFilter})</p>
-              <p className="text-xs text-blue-400 mt-1">Affects {activeColorData.prevalence}</p>
+            <div className="bg-white border border-[#e0e0e8] rounded-xl p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#374151] mb-1">Color Vision Filter</p>
+              <p className="text-sm font-semibold text-[#0c0c0f] mb-0.5">{activeColorData.name}</p>
+              <p className="text-xs text-[#4b5563] mb-1">{activeColorData.detail}</p>
+              <p className="text-xs font-mono text-[#6b7280]">url(#{colorFilter})</p>
+              <p className="text-xs text-[#374151] font-medium mt-1">Affects {activeColorData.prevalence}</p>
             </div>
           )}
           {contrastFilter !== 'none' && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-3">
-              <p className="text-xs text-gray-500 mb-1">Contrast Simulation</p>
-              <p className="text-sm text-gray-200 mb-0.5">{contrastData.name}</p>
-              <p className="text-xs text-gray-400 mb-1">{contrastData.detail}</p>
-              <p className="text-xs font-mono text-gray-600">{contrastData.cssValue}</p>
+            <div className="bg-white border border-[#e0e0e8] rounded-xl p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#374151] mb-1">Contrast Simulation</p>
+              <p className="text-sm font-semibold text-[#0c0c0f] mb-0.5">{contrastData.name}</p>
+              <p className="text-xs text-[#4b5563] mb-1">{contrastData.detail}</p>
+              <p className="text-xs font-mono text-[#6b7280]">{contrastData.cssValue}</p>
             </div>
           )}
           {activeSpatial.map(e => (
-            <div key={e.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3">
-              <p className="text-xs text-gray-500 mb-1">Spatial Effect</p>
-              <p className="text-sm text-gray-200 mb-0.5">{e.name}</p>
-              <p className="text-xs text-gray-400">{e.detail}</p>
+            <div key={e.id} className="bg-white border border-[#e0e0e8] rounded-xl p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#374151] mb-1">Spatial Effect</p>
+              <p className="text-sm font-semibold text-[#0c0c0f] mb-0.5">{e.name}</p>
+              <p className="text-xs text-[#4b5563]">{e.detail}</p>
             </div>
           ))}
         </div>
@@ -585,7 +589,7 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
 
 // ─── App Shell ────────────────────────────────────────────────────────────────
 
-type AppTab = 'vision' | 'contrast' | 'sources';
+type AppTab = 'vision' | 'camera' | 'contrast' | 'sources';
 
 export default function App() {
   const [image, setImage] = useState<string | null>(null);
@@ -598,6 +602,7 @@ export default function App() {
     cataracts: false,
   });
   const [tab, setTab] = useState<AppTab>('vision');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFile = useCallback((file: File) => {
@@ -627,193 +632,246 @@ export default function App() {
     colorFilter !== 'none' || contrastFilter !== 'none' || activeSpatialCount > 0;
 
   const TAB_DEFS: { id: AppTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'vision',    label: 'Vision Simulator', icon: <Eye className="w-3.5 h-3.5" /> },
-    { id: 'contrast',  label: 'Contrast Checker', icon: <BarChart3 className="w-3.5 h-3.5" /> },
-    { id: 'sources',   label: 'Sources',          icon: <BookOpen className="w-3.5 h-3.5" /> },
+    { id: 'vision',   label: 'Vision Simulator', icon: <Eye className="w-3.5 h-3.5" /> },
+    { id: 'camera',   label: 'Live Camera',       icon: <Camera className="w-3.5 h-3.5" /> },
+    { id: 'contrast', label: 'Contrast Checker',  icon: <BarChart3 className="w-3.5 h-3.5" /> },
+    { id: 'sources',  label: 'Sources',           icon: <BookOpen className="w-3.5 h-3.5" /> },
   ];
 
+  // Close sidebar on filter selection on mobile
+  const selectColorFilter = (id: ColorFilterId) => {
+    setColorFilter(id);
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+  const selectContrastFilter = (id: ContrastFilterId) => {
+    setContrastFilter(id);
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
+  const SidebarContent = () => (
+    <div className="py-3 flex flex-col flex-1 min-h-0">
+      {/* Mobile header */}
+      <div className="md:hidden flex items-center justify-between px-4 py-2 mb-1 border-b border-[#e0e0e8]">
+        <span className="text-[14px] font-semibold text-[#0c0c0f]">Filters</span>
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#f0f0f0] transition-colors"
+        >
+          <X className="w-4 h-4 text-[#374151]" />
+        </button>
+      </div>
+
+      {/* Upload */}
+      <div className="px-3.5 pb-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#1f2937] mb-2">Image</p>
+        {image ? (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 px-2.5 py-2 rounded-[6px] bg-emerald-50 border border-emerald-200">
+              <Check className="w-3 h-3 text-emerald-500 flex-none" />
+              <span className="text-[12px] text-emerald-600 font-medium truncate">Image loaded</span>
+            </div>
+            <button
+              onClick={() => { fileInputRef.current?.click(); setSidebarOpen(false); }}
+              className="w-full flex items-center gap-2 px-2.5 py-2.5 rounded-[6px] bg-[#f0f0f0] text-[12px] font-medium text-[#1f2937] hover:bg-[#e5e5e8] transition-all"
+            >
+              <ImagePlus className="w-3.5 h-3.5 flex-none text-[#4b5563]" />
+              Load new image
+            </button>
+            <button
+              onClick={clearImage}
+              className="w-full flex items-center gap-2 px-2.5 py-2.5 rounded-[6px] bg-[#f0f0f0] text-[12px] font-medium text-[#4b5563] hover:bg-red-50 hover:text-red-500 transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5 flex-none" />
+              Clear &amp; start over
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { fileInputRef.current?.click(); setSidebarOpen(false); }}
+            className="w-full flex items-center gap-2 px-2.5 py-2.5 rounded-[6px] bg-[#f0f0f0] text-[12px] font-medium text-[#374151] hover:bg-[#e5e5e8] transition-all"
+          >
+            <Upload className="w-3.5 h-3.5 flex-none" />
+            Upload image
+          </button>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) loadFile(f); }}
+        />
+      </div>
+
+      {/* Color Vision Deficiency */}
+      <div className="px-3.5 py-2.5 border-t border-[#f0f0f0]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#1f2937] mb-2">Color Vision Deficiency</p>
+        <div className="space-y-1">
+          {COLOR_FILTERS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => selectColorFilter(f.id)}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-[6px] text-left transition-all ${
+                colorFilter === f.id ? 'bg-[#191919]' : 'bg-[#f0f0f0] hover:bg-[#e8e8e8]'
+              }`}
+            >
+              <div className="w-1.5 h-1.5 rounded-full flex-none" style={{ backgroundColor: colorFilter === f.id ? '#fff' : '#3a3a3a' }} />
+              <div className="min-w-0 flex-1">
+                <span className={`text-[12px] font-medium block truncate ${colorFilter === f.id ? 'text-white' : 'text-[#1f2937]'}`}>{f.name}</span>
+                <span className={`text-[11px] block ${colorFilter === f.id ? 'text-[#aaa]' : 'text-[#6b7280]'}`}>{f.prevalence}</span>
+              </div>
+              <svg className="w-3 h-3 flex-none" viewBox="0 0 12 12" fill="none">
+                <path d="M4.5 9L7.5 6L4.5 3" stroke={colorFilter === f.id ? 'white' : '#3A3A3A'} strokeLinecap="round" strokeWidth="2"/>
+              </svg>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Contrast Sensitivity */}
+      <div className="px-3.5 py-2.5 border-t border-[#f0f0f0]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#1f2937] mb-2">Contrast Sensitivity</p>
+        <div className="space-y-1">
+          {CONTRAST_FILTERS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => selectContrastFilter(f.id)}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-[6px] text-left transition-all ${
+                contrastFilter === f.id ? 'bg-[#191919]' : 'bg-[#f0f0f0] hover:bg-[#e8e8e8]'
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <span className={`text-[12px] font-medium block truncate ${contrastFilter === f.id ? 'text-white' : 'text-[#1f2937]'}`}>{f.name}</span>
+                <span className={`text-[11px] block ${contrastFilter === f.id ? 'text-[#aaa]' : 'text-[#6b7280]'}`}>{f.description}</span>
+              </div>
+              <svg className="w-3 h-3 flex-none" viewBox="0 0 12 12" fill="none">
+                <path d="M4.5 9L7.5 6L4.5 3" stroke={contrastFilter === f.id ? 'white' : '#3A3A3A'} strokeLinecap="round" strokeWidth="2"/>
+              </svg>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Spatial Effects */}
+      <div className="px-3.5 py-2.5 border-t border-[#f0f0f0]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#1f2937] mb-2">Additional Effects</p>
+        <div className="space-y-1">
+          {SPATIAL_EFFECTS.map(e => (
+            <SwitchRow
+              key={e.id}
+              label={e.name}
+              sublabel={e.description}
+              checked={spatial[e.id]}
+              color={e.color}
+              onChange={() => toggleSpatial(e.id)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Reset */}
+      {hasAnyEffect && (
+        <div className="px-3.5 pt-2 border-t border-[#f0f0f0]">
+          <div className="bg-[#f0f0f0] rounded-[6px] px-2.5 py-2">
+            <p className="text-[11px] font-medium text-[#374151] mb-1">
+              {[colorFilter !== 'none' ? 1 : 0, contrastFilter !== 'none' ? 1 : 0, activeSpatialCount].reduce((a, b) => a + b, 0)} simulation{hasAnyEffect ? 's' : ''} active
+            </p>
+            <button onClick={resetAll} className="text-[11px] text-[#6b7280] hover:text-[#0c0c0f] transition-colors">
+              Reset all →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Footer note */}
+      <div className="px-3.5 pt-3 mt-auto border-t border-[#f0f0f0]">
+        <p className="text-[11px] text-[#374151] leading-[15px]">Simulations are approximations for design evaluation and research.</p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="h-screen bg-gray-950 text-gray-100 flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-[#f5f5f7] text-[#0c0c0f] flex flex-col overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
       <SvgFilters />
 
       {/* ── Header ── */}
-      <header className="flex-none border-b border-gray-800 px-5 py-3 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 flex-none">
-          <div>
-            <h1 className="text-gray-100 leading-none">ADA Vision Checker</h1>
-            <p className="text-xs text-gray-500 leading-none mt-0.5">WCAG 2.1 · ADA · Section 508</p>
+      <header className="flex-none h-14 bg-[#f5f5f7] border-b border-[#e0e0e8] px-3 sm:px-4 flex items-center justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 flex-none">
+          {/* Mobile filter toggle */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className={`w-9 h-9 flex items-center justify-center rounded-[8px] bg-[#f0f0f0] border border-[#e0e0e8] hover:bg-[#e5e5e8] transition-colors relative ${tab === 'camera' ? 'hidden' : 'md:hidden'}`}
+            aria-label="Open filters"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-[#374151]" />
+            {hasAnyEffect && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#0c0c0f] rounded-full flex items-center justify-center text-white text-[9px] font-bold">
+                {[colorFilter !== 'none' ? 1 : 0, contrastFilter !== 'none' ? 1 : 0, activeSpatialCount].reduce((a, b) => a + b, 0)}
+              </span>
+            )}
+          </button>
+          <div className="flex flex-col gap-0.5">
+            <h1 className="text-[17px] sm:text-[19px] font-semibold leading-6 tracking-[-0.4px] text-[#0c0c0f]">ADA Vision Checker</h1>
+            <p className="hidden sm:block text-[11px] text-[#4b5563] tracking-[0.2px] leading-none">WCAG 2.1 · ADA · Section 508</p>
           </div>
         </div>
 
-        <nav className="flex gap-1 bg-gray-900 rounded-lg p-1 border border-gray-800">
+        {/* Tabs — scroll on small screens */}
+        <nav className="flex gap-1 overflow-x-auto scrollbar-none flex-none max-w-full">
           {TAB_DEFS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
+              className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-[7px] rounded-[20px] text-[12px] sm:text-[13px] whitespace-nowrap transition-all flex-none ${
                 tab === t.id
-                  ? 'bg-gray-700 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-gray-200'
+                  ? 'bg-[#0c0c0f] text-white font-semibold'
+                  : 'text-[#374151] font-medium hover:text-[#0c0c0f]'
               }`}
             >
               {t.icon}
-              {t.label}
+              <span className="hidden xs:inline sm:inline">{t.label}</span>
             </button>
           ))}
         </nav>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* ── Sidebar ── */}
-        <aside className="w-64 flex-none border-r border-gray-800 overflow-y-auto flex flex-col">
-          <div className="p-4 space-y-5 flex-1">
+        {/* ── Mobile backdrop ── */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-            {/* Upload */}
-            <div>
-              <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">Image</p>
-              {image ? (
-                <div className="space-y-1.5">
-                  {/* Status indicator */}
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-900/15 border border-emerald-700/40">
-                    <Check className="w-3.5 h-3.5 text-emerald-400 flex-none" />
-                    <span className="text-xs text-emerald-400 truncate">Image loaded</span>
-                  </div>
-                  {/* Replace */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800/60 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-all"
-                  >
-                    <ImagePlus className="w-4 h-4 flex-none text-gray-400" />
-                    Load new image
-                  </button>
-                  {/* Start over */}
-                  <button
-                    onClick={clearImage}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-800 bg-gray-900/40 text-sm text-gray-500 hover:bg-red-900/30 hover:border-red-700/40 hover:text-red-400 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4 flex-none" />
-                    Clear &amp; start over
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-700 bg-gray-900/50 text-sm text-gray-400 hover:border-gray-600 hover:text-gray-200 transition-all"
-                >
-                  <Upload className="w-4 h-4 flex-none" />
-                  Upload image
-                </button>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) loadFile(f); }}
-              />
-            </div>
-
-            {/* Color Vision Deficiency */}
-            <div>
-              <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">
-                Color Vision Deficiency
-              </p>
-              <div className="space-y-0.5">
-                {COLOR_FILTERS.map(f => (
-                  <button
-                    key={f.id}
-                    onClick={() => setColorFilter(f.id)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left border transition-all ${
-                      colorFilter === f.id
-                        ? 'bg-blue-600/15 border-blue-500/35'
-                        : 'border-transparent hover:bg-gray-800'
-                    }`}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full flex-none" style={{ backgroundColor: ({ none: '#bfdbfe', protanopia: '#93c5fd', deuteranopia: '#60a5fa', tritanopia: '#3b82f6', achromatopsia: '#2563eb', protanomaly: '#1d4ed8', deuteranomaly: '#1e40af' } as Record<string, string>)[f.id] ?? '#3b82f6' }} />
-                    <div className="min-w-0 flex-1">
-                      <span className="text-sm text-gray-200 block truncate">{f.name}</span>
-                      <span className="text-xs text-gray-500 block">{f.prevalence}</span>
-                    </div>
-                    {colorFilter === f.id && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-none" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Contrast Sensitivity */}
-            <div>
-              <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">
-                Contrast Sensitivity
-              </p>
-              <div className="space-y-0.5">
-                {CONTRAST_FILTERS.map(f => (
-                  <button
-                    key={f.id}
-                    onClick={() => setContrastFilter(f.id)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left border transition-all ${
-                      contrastFilter === f.id
-                        ? 'bg-purple-600/15 border-purple-500/35'
-                        : 'border-transparent hover:bg-gray-800'
-                    }`}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full flex-none" style={{ backgroundColor: f.dot }} />
-                    <div className="min-w-0 flex-1">
-                      <span className="text-sm text-gray-200 block truncate">{f.name}</span>
-                      <span className="text-xs text-gray-500 block truncate">{f.description}</span>
-                    </div>
-                    {contrastFilter === f.id && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-purple-400 flex-none" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Spatial Effects */}
-            <div>
-              <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">
-                Additional Effects
-              </p>
-              <div className="space-y-1.5">
-                {SPATIAL_EFFECTS.map(e => (
-                  <SwitchRow
-                    key={e.id}
-                    label={e.name}
-                    sublabel={e.description}
-                    checked={spatial[e.id]}
-                    color={e.color}
-                    onChange={() => toggleSpatial(e.id)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Active indicator + reset */}
-            {hasAnyEffect && (
-              <div className="bg-blue-500/8 border border-blue-500/20 rounded-lg p-3">
-                <p className="text-xs text-blue-400 mb-1">
-                  {[
-                    colorFilter !== 'none' ? 1 : 0,
-                    contrastFilter !== 'none' ? 1 : 0,
-                    activeSpatialCount,
-                  ].reduce((a, b) => a + b, 0)}{' '}
-                  simulation{hasAnyEffect ? 's' : ''} active
-                </p>
-                <button
-                  onClick={resetAll}
-                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                >
-                  Reset all →
-                </button>
-              </div>
-            )}
+        {/* ── Black decorative strip — desktop only, hidden on camera tab ── */}
+        <div className={`hidden w-10 flex-none bg-black border-r border-[#1c1c1c] flex-col items-center py-4 shrink-0 ${tab !== 'camera' ? 'md:flex' : ''}`}>
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-[9px] font-medium text-[#555] tracking-[2px] uppercase whitespace-nowrap" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+              ADA VISION CHECKER
+            </p>
           </div>
+        </div>
+
+        {/* ── Sidebar ── */}
+        <aside
+          className={`
+            fixed md:relative inset-y-0 left-0 z-50
+            w-[280px] md:w-[248px]
+            bg-white border-r border-[#1c1c1c]
+            overflow-y-auto flex flex-col shrink-0
+            transition-transform duration-300 ease-in-out
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            ${tab === 'camera' ? 'md:-translate-x-full md:w-0 md:overflow-hidden md:border-0' : 'md:translate-x-0'}
+          `}
+        >
+          <SidebarContent />
         </aside>
 
         {/* ── Main Content ── */}
-        <main className="flex-1 overflow-auto p-5 flex flex-col min-h-0">
+        <main className={`flex-1 overflow-auto flex flex-col min-h-0 ${tab === 'camera' ? 'p-0 bg-black' : 'p-2.5 sm:p-3 bg-[#f5f5f7]'}`}>
+          {tab === 'camera' && <LiveCamera />}
+
           {tab === 'vision' && (
             image
               ? <VisionSimulator
@@ -829,9 +887,9 @@ export default function App() {
 
           {tab === 'contrast' && (
             <div className="max-w-2xl mx-auto w-full">
-              <div className="mb-6">
-                <h2 className="text-gray-100">WCAG Contrast Checker</h2>
-                <p className="text-sm text-gray-400 mt-0.5">
+              <div className="mb-4">
+                <h2 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.4px] text-[#0c0c0f]">WCAG Contrast Checker</h2>
+                <p className="text-sm text-[#4b5563] mt-1">
                   Test color pairs against WCAG 2.1 AA and AAA thresholds
                 </p>
               </div>
