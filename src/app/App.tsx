@@ -20,6 +20,7 @@ import { ContrastChecker } from './components/ContrastChecker';
 import { SourcesPanel } from './components/SourcesPanel';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { LiveCamera } from './components/LiveCamera';
+import { SplashScreen } from './components/SplashScreen';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -692,6 +693,7 @@ export default function App() {
     macular: false,
     cataracts: false,
   });
+  const [showSplash, setShowSplash] = useState(true);
   const [tab, setTab] = useState<AppTab>('vision');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -882,7 +884,9 @@ export default function App() {
   );
 
   return (
-    <div className="h-[100dvh] bg-[#f5f5f7] text-[#0c0c0f] flex flex-col overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <>
+      {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+      <div className="h-[100dvh] bg-[#f5f5f7] text-[#0c0c0f] flex flex-col overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
       <SvgFilters />
 
       {/* ── Header ── */}
@@ -989,5 +993,6 @@ export default function App() {
         </main>
       </div>
     </div>
+    </>
   );
 }
