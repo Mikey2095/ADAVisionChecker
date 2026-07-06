@@ -506,7 +506,7 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
           </div>
           {/* h-[220px] is fixed on mobile — cannot be compressed by siblings */}
           <div className="h-[220px] sm:h-auto sm:flex-1 sm:min-h-0 bg-white rounded-xl overflow-hidden border border-[#e0e0e8] flex items-center justify-center">
-            <img src={image} alt="Original" className="max-w-full max-h-full object-contain" />
+            <img src={image} alt="Original" className="w-full h-full object-contain" />
           </div>
         </div>
 
@@ -525,7 +525,7 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
             <img
               src={image}
               alt="Simulated view"
-              className="max-w-full max-h-full object-contain"
+              className="w-full h-full object-contain"
               style={{ filter: cssFilterChain }}
             />
 
