@@ -456,7 +456,7 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
   return (
     // Mobile: natural scroll column so images never compress when cards appear/disappear.
     // Desktop (sm+): height-filling flex so images stretch to fill the panel.
-    <div className="flex flex-col gap-3 overflow-y-auto sm:overflow-hidden sm:h-full pb-2 sm:pb-0">
+    <div className="flex flex-col gap-3 overflow-y-auto sm:overflow-hidden sm:flex-1 sm:min-h-0 pb-2 sm:pb-0">
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-none">
         {/* Active badges — desktop only */}
@@ -498,21 +498,20 @@ function VisionSimulator({ image, colorFilter, contrastFilter, spatial, onReplac
           Desktop: flex-1 grid that stretches to fill remaining panel height          */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-none sm:flex-1 sm:min-h-0">
         {/* Original */}
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 mb-1.5">
+        <div className="flex flex-col sm:min-h-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-none">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-none" />
             <span className="text-sm text-[#1f2937] font-semibold">Normal Vision</span>
             <span className="text-xs text-[#6b7280]">Reference</span>
           </div>
-          {/* h-[220px] is fixed on mobile — cannot be compressed by siblings */}
           <div className="h-[220px] sm:h-auto sm:flex-1 sm:min-h-0 bg-white rounded-xl overflow-hidden border border-[#e0e0e8] flex items-center justify-center">
             <img src={image} alt="Original" className="w-full h-full object-contain" />
           </div>
         </div>
 
         {/* Simulated */}
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 mb-1.5">
+        <div className="flex flex-col sm:min-h-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-none">
             <div className="w-1.5 h-1.5 rounded-full bg-[#0c0c0f] flex-none" />
             <span className="text-sm text-[#1f2937] font-semibold">Simulated View</span>
             <span className="text-xs text-[#6b7280] truncate">
@@ -961,7 +960,7 @@ export default function App() {
         </aside>
 
         {/* ── Main Content ── */}
-        <main className={`flex-1 overflow-auto flex flex-col min-h-0 ${tab === 'camera' ? 'p-0 bg-black' : 'p-2.5 sm:p-3 bg-[#f5f5f7]'}`}>
+        <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${tab === 'camera' ? 'p-0 bg-black' : 'p-2.5 sm:p-3 bg-[#f5f5f7]'}`}>
           {tab === 'camera' && <LiveCamera />}
 
           {tab === 'vision' && (
@@ -977,22 +976,28 @@ export default function App() {
                   onContrastFilter={setContrastFilter}
                   onToggleSpatial={toggleSpatial}
                 />
-              : <WelcomeScreen onFile={loadFile} />
+              : <div className="flex-1 min-h-0 overflow-y-auto"><WelcomeScreen onFile={loadFile} /></div>
           )}
 
           {tab === 'contrast' && (
-            <div className="max-w-2xl mx-auto w-full">
-              <div className="mb-4">
-                <h2 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.4px] text-[#0c0c0f]">WCAG Contrast Checker</h2>
-                <p className="text-sm text-[#4b5563] mt-1">
-                  Test color pairs against WCAG 2.1 AA and AAA thresholds
-                </p>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="max-w-2xl mx-auto w-full py-1">
+                <div className="mb-4">
+                  <h2 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.4px] text-[#0c0c0f]">WCAG Contrast Checker</h2>
+                  <p className="text-sm text-[#4b5563] mt-1">
+                    Test color pairs against WCAG 2.1 AA and AAA thresholds
+                  </p>
+                </div>
+                <ContrastChecker />
               </div>
-              <ContrastChecker />
             </div>
           )}
 
-          {tab === 'sources' && <SourcesPanel />}
+          {tab === 'sources' && (
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <SourcesPanel />
+            </div>
+          )}
         </main>
       </div>
     </div>
