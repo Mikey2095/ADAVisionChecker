@@ -14,7 +14,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { Eye, Upload, Check, BookOpen, BarChart3, RefreshCw, ImagePlus, Trash2, SlidersHorizontal, X, Camera } from 'lucide-react';
+import { Eye, Upload, Check, BookOpen, BarChart3, RefreshCw, ImagePlus, Trash2, X, Camera } from 'lucide-react';
 import * as Switch from '@radix-ui/react-switch';
 import { ContrastChecker } from './components/ContrastChecker';
 import { SourcesPanel } from './components/SourcesPanel';
@@ -889,18 +889,6 @@ export default function App() {
       <header className="flex-none h-14 bg-[#f5f5f7] border-b border-[#e0e0e8] px-3 sm:px-4 flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2.5 flex-none">
           {/* Mobile filter toggle */}
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className={`w-9 h-9 flex items-center justify-center rounded-[8px] bg-[#f0f0f0] border border-[#e0e0e8] hover:bg-[#e5e5e8] transition-colors relative ${tab === 'camera' ? 'hidden' : 'md:hidden'}`}
-            aria-label="Open filters"
-          >
-            <SlidersHorizontal className="w-4 h-4 text-[#374151]" />
-            {hasAnyEffect && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#0c0c0f] rounded-full flex items-center justify-center text-white text-[9px] font-bold">
-                {[colorFilter !== 'none' ? 1 : 0, contrastFilter !== 'none' ? 1 : 0, activeSpatialCount].reduce((a, b) => a + b, 0)}
-              </span>
-            )}
-          </button>
           <div className="flex flex-col gap-0.5">
             <h1 className="text-[17px] sm:text-[19px] font-semibold leading-6 tracking-[-0.4px] text-[#0c0c0f]">ADA Vision Checker</h1>
             <p className="hidden sm:block text-[11px] text-[#4b5563] tracking-[0.2px] leading-none">WCAG 2.1 · ADA · Section 508</p>
