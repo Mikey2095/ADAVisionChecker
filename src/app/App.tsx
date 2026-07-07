@@ -905,7 +905,7 @@ export default function App() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-[7px] rounded-[20px] text-[12px] sm:text-[13px] whitespace-nowrap transition-all flex-none ${
+              className={`${t.id === 'contrast' ? 'hidden sm:flex' : 'flex'} items-center gap-1.5 px-3 sm:px-3.5 py-[7px] rounded-[20px] text-[12px] sm:text-[13px] whitespace-nowrap transition-all flex-none ${
                 tab === t.id
                   ? 'bg-[#0c0c0f] text-white font-semibold'
                   : 'text-[#374151] font-medium hover:text-[#0c0c0f]'
