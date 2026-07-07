@@ -19,7 +19,7 @@
 import { useState, useEffect } from 'react';
 import HomePageDesktop from '../../imports/HomePageDesktop/index';
 import HomePageMobile  from '../../imports/HomePageMobile-1/index';
-import loaderVideo     from '../../imports/Loader.mp4';
+import loaderVideo     from '../../imports/Loader-1.mp4';
 
 // ── Canvas sizes (taken from each design's background SVG viewBox) ────────────
 const DESKTOP_W = 1000;
@@ -34,8 +34,7 @@ const VIDEO_TOP  = 129;
 const VIDEO_SIZE = 221.9;
 
 // ── Timing ────────────────────────────────────────────────────────────────────
-const HOLD_MS = 3200;   // ms before fade starts
-const FADE_MS = 700;    // ms for fade-out transition
+const FADE_MS = 700;    // ms for fade-out transition after ENTER is pressed
 
 // ── CSS keyframe animation ────────────────────────────────────────────────────
 const SPLASH_CSS = `
@@ -86,11 +85,12 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
     return () => window.removeEventListener('resize', h);
   }, []);
 
-  useEffect(() => {
-    const t1 = setTimeout(() => setFading(true), HOLD_MS);
-    const t2 = setTimeout(onDone, HOLD_MS + FADE_MS);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [onDone]);
+  // ENTER button is the only gate — no auto-dismiss timer
+  const handleEnter = () => {
+    if (fading) return;
+    setFading(true);
+    setTimeout(onDone, FADE_MS);
+  };
 
   const { isMobile, scale } = layout;
   const designW = isMobile ? MOBILE_W : DESKTOP_W;
@@ -156,6 +156,85 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </div>
+          )}
+
+          {/*
+            ENTER button — from Frame1 (desktop) / Frame3 (mobile) in the imports.
+            Positioned in design-space so it sits exactly where Figma placed it.
+            Clicking immediately dismisses the splash.
+
+            Desktop (Frame1):
+              left: calc(50% + 0.5px), top: calc(50% + 404px)
+              translate: -50% -50%  →  center ≈ (500, 904)
+              w: 629px  h: 50px  rounded: 16.639px
+
+            Mobile (Frame3):
+              left: 50%, top: 720px
+              translate: -50%
+              w: 243px  h: 56px  rounded: 16.639px
+          */}
+          {!isMobile ? (
+            <button
+              onClick={handleEnter}
+              style={{
+                position: 'absolute',
+                left: 'calc(50% + 0.5px)',
+                top: 'calc(50% + 404px)',
+                transform: 'translate(-50%, -50%)',
+                width: 629,
+                height: 50,
+                backgroundColor: 'white',
+                borderRadius: 16.639,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 5.546,
+                cursor: 'pointer',
+                border: 'none',
+              }}
+            >
+              <span style={{
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+                fontSize: 32.906,
+                lineHeight: '14.42px',
+                color: 'black',
+                letterSpacing: 0,
+              }}>
+                ENTER
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={handleEnter}
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: 720,
+                transform: 'translateX(-50%)',
+                width: 243,
+                height: 56,
+                backgroundColor: 'white',
+                borderRadius: 16.639,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 5.546,
+                cursor: 'pointer',
+                border: 'none',
+              }}
+            >
+              <span style={{
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+                fontSize: 32.906,
+                lineHeight: '14.42px',
+                color: 'black',
+                letterSpacing: 0,
+              }}>
+                ENTER
+              </span>
+            </button>
           )}
         </div>
       </div>
