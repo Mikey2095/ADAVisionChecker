@@ -912,7 +912,7 @@ export default function App() {
               }`}
             >
               {t.icon}
-              <span className="hidden xs:inline sm:inline">{t.label}</span>
+              <span className="hidden sm:inline">{t.label}</span>
             </button>
           ))}
         </nav>
