@@ -77,11 +77,63 @@ function isSecureContext(): boolean {
   return window.isSecureContext === true;
 }
 
+// Prefix avoids colliding with the identical IDs in App.tsx's SvgFilters
+const CAM_FILTER_PREFIX = 'cam-';
+
+// SVG feColorMatrix filters embedded directly beside the video element.
+// Referencing App.tsx's global filter IDs via url(#id) is unreliable on
+// <video> elements — co-locating the defs guarantees they're always in scope.
+// Matrix values: Brettel et al. (1997) / Machado et al. (2009), sRGB space.
+function CameraColorFilters() {
+  return (
+    <svg aria-hidden="true" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+      <defs>
+        <filter id="cam-protanopia" colorInterpolationFilters="sRGB">
+          <feColorMatrix type="matrix" values="0.567 0.433 0     0 0
+                                               0.558 0.442 0     0 0
+                                               0     0.242 0.758 0 0
+                                               0     0     0     1 0" />
+        </filter>
+        <filter id="cam-deuteranopia" colorInterpolationFilters="sRGB">
+          <feColorMatrix type="matrix" values="0.625 0.375 0   0 0
+                                               0.7   0.3   0   0 0
+                                               0     0.3   0.7 0 0
+                                               0     0     0   1 0" />
+        </filter>
+        <filter id="cam-tritanopia" colorInterpolationFilters="sRGB">
+          <feColorMatrix type="matrix" values="0.95  0.05  0     0 0
+                                               0     0.433 0.567 0 0
+                                               0     0.475 0.525 0 0
+                                               0     0     0     1 0" />
+        </filter>
+        <filter id="cam-achromatopsia" colorInterpolationFilters="sRGB">
+          <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0
+                                               0.299 0.587 0.114 0 0
+                                               0.299 0.587 0.114 0 0
+                                               0     0     0     1 0" />
+        </filter>
+        <filter id="cam-protanomaly" colorInterpolationFilters="sRGB">
+          <feColorMatrix type="matrix" values="0.817 0.183 0     0 0
+                                               0.333 0.667 0     0 0
+                                               0     0.125 0.875 0 0
+                                               0     0     0     1 0" />
+        </filter>
+        <filter id="cam-deuteranomaly" colorInterpolationFilters="sRGB">
+          <feColorMatrix type="matrix" values="0.8   0.2   0     0 0
+                                               0.258 0.742 0     0 0
+                                               0     0.142 0.858 0 0
+                                               0     0     0     1 0" />
+        </filter>
+      </defs>
+    </svg>
+  );
+}
+
 function buildCssFilter(colorId: ColorId, contrastId: ContrastId, spatial: SpatialState): string | undefined {
   const contrastCss = CONTRAST_FILTERS.find(f => f.id === contrastId)!.css;
   const blurPx = (spatial.lowVision ? 4 : 0) + (spatial.cataracts ? 2 : 0);
   const parts = [
-    colorId !== 'none' ? `url(#${colorId})` : '',
+    colorId !== 'none' ? `url(#${CAM_FILTER_PREFIX}${colorId})` : '',
     contrastCss,
     blurPx > 0 ? `blur(${blurPx}px)` : '',
   ].filter(Boolean);
@@ -312,6 +364,9 @@ export function LiveCamera() {
 
       {/* ── Viewport — video always in DOM so videoRef is never null ── */}
       <div className="relative flex-1 min-h-0 overflow-hidden bg-black">
+
+        {/* Color filter defs live right beside the video so url(#cam-*) always resolves */}
+        <CameraColorFilters />
 
         {/* Video — always mounted, invisible until live */}
         <video
